@@ -29,17 +29,10 @@ artist = st.sidebar.text_input("Enter Artist Name:", value="Arijit Singh")
 limit = st.sidebar.slider("Number of Tracks to Analyze", 5, 50, 15)
 
 # === Spotify Helper Functions ===
-def fetch_artist_id(artist_name):
-    results = sp.search(q=artist_name, type='artist', limit=1)
-    items = results.get("artists", {}).get("items", [])
-    if items:
-        return items[0]["id"]
-    return None
-
 @st.cache_data(show_spinner=False)
-def fetch_tracks_by_artist_id(artist_id, limit):
-    results = sp.artist_top_tracks(artist_id, country="IN")
-    return results["tracks"][:limit]
+def fetch_tracks_by_search(artist_name, limit):
+    results = sp.search(q=f"artist:{artist_name}", type='track', limit=limit, market="IN")
+    return results['tracks']['items']
 
 @st.cache_data(show_spinner=False)
 def fetch_audio_features(track_ids):
@@ -57,23 +50,21 @@ def fetch_audio_features(track_ids):
 def create_dataframe(tracks, features):
     data = []
     for track, f in zip(tracks, features):
-        if all(col in f and f[col] is not None for col in ["valence", "energy", "danceability", "acousticness", "tempo"]):
-            data.append({
-                "track_name": track["name"],
-                "artist": track["artists"][0]["name"],
-                "preview_url": track["preview_url"],
-                "album_image": track["album"]["images"][0]["url"],
-                "popularity": track["popularity"],
-                "valence": f["valence"],
-                "energy": f["energy"],
-                "danceability": f["danceability"],
-                "acousticness": f["acousticness"],
-                "tempo": f["tempo"]
-            })
+        data.append({
+            "track_name": track["name"],
+            "artist": track["artists"][0]["name"],
+            "preview_url": track["preview_url"],
+            "album_image": track["album"]["images"][0]["url"],
+            "popularity": track["popularity"],
+            "valence": f["valence"],
+            "energy": f["energy"],
+            "danceability": f["danceability"],
+            "acousticness": f["acousticness"],
+            "tempo": f["tempo"]
+        })
     return pd.DataFrame(data)
 
 def cluster_and_label(df):
-    # Only keep numeric audio features
     required_cols = ["valence", "energy", "danceability", "acousticness", "tempo"]
     missing = [col for col in required_cols if col not in df.columns]
 
@@ -93,11 +84,9 @@ def cluster_and_label(df):
     kmeans = KMeans(n_clusters=min(4, len(df)), random_state=42)
     df["mood_cluster"] = kmeans.fit_predict(X_scaled)
 
-    # Mood labeling
     mood_labels = ["Calm", "Happy", "Sad", "Energetic"]
     df["mood"] = df["mood_cluster"].map(lambda x: mood_labels[x % len(mood_labels)])
 
-    # PCA for plot
     pca = PCA(n_components=2)
     components = pca.fit_transform(X_scaled)
     df["PCA1"] = components[:, 0]
@@ -108,12 +97,7 @@ def cluster_and_label(df):
 # === Main App Logic ===
 if st.button("🎯 Analyze Tracks"):
     with st.spinner("Fetching data from Spotify..."):
-        artist_id = fetch_artist_id(artist)
-        if not artist_id:
-            st.error("❌ Artist not found.")
-            st.stop()
-
-        tracks = fetch_tracks_by_artist_id(artist_id, limit)
+        tracks = fetch_tracks_by_search(artist, limit)
         if not tracks:
             st.error("No tracks found.")
             st.stop()
@@ -128,10 +112,6 @@ if st.button("🎯 Analyze Tracks"):
         df = create_dataframe(tracks, features)
         df = cluster_and_label(df)
 
-        if "mood" not in df.columns:
-            st.error("⚠️ Mood clustering failed. Please try with a different artist or fewer tracks.")
-            st.stop()
-
         st.success("Analysis Complete ✅")
 
         # 📊 Mood Distribution
@@ -145,7 +125,7 @@ if st.button("🎯 Analyze Tracks"):
         sns.scatterplot(data=df, x="PCA1", y="PCA2", hue="mood", s=100, palette="Set2", ax=ax)
         st.pyplot(fig)
 
-        # 🎶 Track Explorer
+        # 🎧 Track Explorer
         st.subheader("🎶 Track Explorer")
         for _, row in df.iterrows():
             col1, col2 = st.columns([1, 4])
