@@ -1,0 +1,7 @@
+streamlit
+spotipy
+pandas
+matplotlib
+seaborn
+scikit-learn
+python-dotenv
