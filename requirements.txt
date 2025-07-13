@@ -1,7 +1,7 @@
 streamlit
-spotipy
 pandas
+numpy
 matplotlib
 seaborn
 scikit-learn
-python-dotenv
+spotipy
