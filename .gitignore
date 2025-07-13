@@ -1,5 +1,10 @@
+.cache/
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 .env
-venv/
+.venv/
+*.log
 secrets.toml
-.cache
+.streamlit/secrets.toml
