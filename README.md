@@ -1,4 +1,4 @@
-# 🎵 Advanced Spotify Mood Analyzer
+# 🎵 Spotify Mood Analyzer
 
 An interactive music analysis web app that uses Spotify audio features to cluster tracks into emotional moods like Happy, Calm, Sad, or Energetic. Built using **Streamlit**, **Spotipy**, and **Scikit-learn**, it's perfect for data-driven music exploration.
 
