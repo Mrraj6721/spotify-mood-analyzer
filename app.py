@@ -20,7 +20,7 @@ auth_manager = SpotifyClientCredentials(client_id=client_id, client_secret=clien
 sp = spotipy.Spotify(auth_manager=auth_manager)
 
 # === UI CONFIG ===
-st.set_page_config(page_title="🎿 Spotify Mood Analyzer", layout="wide")
+st.set_page_config(page_title="🎧 Spotify Mood Analyzer", layout="wide")
 st.title("🎵 Advanced Spotify Mood Analyzer")
 st.caption("Clustering moods using audio features with Streamlit + Spotipy + ML")
 
@@ -29,10 +29,17 @@ artist = st.sidebar.text_input("Enter Artist Name:", value="Arijit Singh")
 limit = st.sidebar.slider("Number of Tracks to Analyze", 5, 50, 15)
 
 # === Spotify Helper Functions ===
+def fetch_artist_id(artist_name):
+    results = sp.search(q=artist_name, type='artist', limit=1)
+    items = results.get("artists", {}).get("items", [])
+    if items:
+        return items[0]["id"]
+    return None
+
 @st.cache_data(show_spinner=False)
-def fetch_tracks(artist_query, limit):
-    results = sp.search(q=f"artist:{artist_query}", type='track', limit=limit, market="IN")
-    return results["tracks"]["items"]
+def fetch_tracks_by_artist_id(artist_id, limit):
+    results = sp.artist_top_tracks(artist_id, country="IN")
+    return results["tracks"][:limit]
 
 @st.cache_data(show_spinner=False)
 def fetch_audio_features(track_ids):
@@ -101,7 +108,12 @@ def cluster_and_label(df):
 # === Main App Logic ===
 if st.button("🎯 Analyze Tracks"):
     with st.spinner("Fetching data from Spotify..."):
-        tracks = fetch_tracks(artist, limit)
+        artist_id = fetch_artist_id(artist)
+        if not artist_id:
+            st.error("❌ Artist not found.")
+            st.stop()
+
+        tracks = fetch_tracks_by_artist_id(artist_id, limit)
         if not tracks:
             st.error("No tracks found.")
             st.stop()
@@ -121,10 +133,6 @@ if st.button("🎯 Analyze Tracks"):
             st.stop()
 
         st.success("Analysis Complete ✅")
-
-        # Debug: Optional display of processed DataFrame
-        # st.write("DataFrame after clustering:")
-        # st.dataframe(df.head())
 
         # 📊 Mood Distribution
         st.subheader("📊 Mood Distribution")
@@ -151,9 +159,9 @@ if st.button("🎯 Analyze Tracks"):
                 else:
                     st.write("⚠️ No preview available.")
 
-        # 📅 Download CSV
+        # 💾 Download CSV
         st.download_button(
-            label="📅 Download Mood Data",
+            label="📥 Download Mood Data",
             data=df.to_csv(index=False).encode("utf-8"),
             file_name="spotify_mood_data.csv",
             mime="text/csv"
