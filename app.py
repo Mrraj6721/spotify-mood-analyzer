@@ -20,7 +20,7 @@ auth_manager = SpotifyClientCredentials(client_id=client_id, client_secret=clien
 sp = spotipy.Spotify(auth_manager=auth_manager)
 
 # === UI CONFIG ===
-st.set_page_config(page_title="🎧 Spotify Mood Analyzer", layout="wide")
+st.set_page_config(page_title="🎿 Spotify Mood Analyzer", layout="wide")
 st.title("🎵 Advanced Spotify Mood Analyzer")
 st.caption("Clustering moods using audio features with Streamlit + Spotipy + ML")
 
@@ -65,20 +65,30 @@ def create_dataframe(tracks, features):
     return pd.DataFrame(data)
 
 def cluster_and_label(df):
-    X = df[["valence", "energy", "danceability", "acousticness", "tempo"]]
-    X_scaled = StandardScaler().fit_transform(X)
+    # Only keep numeric audio features
+    required_cols = ["valence", "energy", "danceability", "acousticness", "tempo"]
+    missing = [col for col in required_cols if col not in df.columns]
 
-    kmeans = KMeans(n_clusters=4, random_state=42)
-    df["cluster"] = kmeans.fit_predict(X_scaled)
+    if missing:
+        st.error(f"Missing required audio feature columns: {missing}")
+        return df
 
-    mood_map = {
-        0: "Chill 🧘",
-        1: "Energetic ⚡",
-        2: "Romantic 💖",
-        3: "Sad 😢"
-    }
-    df["mood"] = df["cluster"].map(lambda x: mood_map.get(x, f"Mood {x}"))
+    X = df[required_cols]
 
+    if len(X) <= 1:
+        df["mood_cluster"] = 0
+        df["mood"] = "Undefined"
+        return df
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    kmeans = KMeans(n_clusters=min(4, len(df)), random_state=42)
+    df["mood_cluster"] = kmeans.fit_predict(X_scaled)
+
+    # Mood labeling
+    mood_labels = ["Calm", "Happy", "Sad", "Energetic"]
+    df["mood"] = df["mood_cluster"].map(lambda x: mood_labels[x % len(mood_labels)])
+    
     # PCA for plot
     pca = PCA(n_components=2)
     components = pca.fit_transform(X_scaled)
@@ -113,7 +123,7 @@ if st.button("🎯 Analyze Tracks"):
         sns.scatterplot(data=df, x="PCA1", y="PCA2", hue="mood", s=100, palette="Set2", ax=ax)
         st.pyplot(fig)
 
-        # 🎧 Track Explorer
+        # 🎶 Track Explorer
         st.subheader("🎶 Track Explorer")
         for _, row in df.iterrows():
             col1, col2 = st.columns([1, 4])
@@ -127,9 +137,9 @@ if st.button("🎯 Analyze Tracks"):
                 else:
                     st.write("⚠️ No preview available.")
 
-        # 💾 Download CSV
+        # 📅 Download CSV
         st.download_button(
-            label="📥 Download Mood Data",
+            label="📅 Download Mood Data",
             data=df.to_csv(index=False).encode("utf-8"),
             file_name="spotify_mood_data.csv",
             mime="text/csv"
