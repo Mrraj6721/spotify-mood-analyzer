@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
-import seaborn as sns
+import seab as sns
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
@@ -31,7 +31,7 @@ limit = st.sidebar.slider("Number of Tracks to Analyze", 5, 50, 15)
 # === Spotify Helper Functions ===
 @st.cache_data(show_spinner=False)
 def fetch_tracks_by_search(artist_name, limit):
-    results = sp.search(q=f"artist:{artist_name}", type='track', limit=limit, market="IN")
+    results = sp.search(q=f"artist:{artist_name}", type='track', limit=limit)
     return results['tracks']['items']
 
 @st.cache_data(show_spinner=False)
@@ -39,12 +39,14 @@ def fetch_audio_features(track_ids):
     all_features = []
     for tid in track_ids:
         try:
-            features = sp.audio_features(tid)[0]
-            if features and all(k in features and features[k] is not None for k in ["valence", "energy", "danceability", "acousticness", "tempo"]):
-                all_features.append(features)
-            time.sleep(0.1)
-        except:
-            continue
+            features = sp.audio_features([tid])
+            if features and features[0] is not None:
+                f = features[0]
+                if all(k in f and f[k] is not None for k in ["valence", "energy", "danceability", "acousticness", "tempo"]):
+                    all_features.append(f)
+        except Exception as e:
+            st.warning(f"⚠️ Failed to get audio features for track ID: {tid}")
+        time.sleep(0.1)
     return all_features
 
 def create_dataframe(tracks, features):
@@ -102,8 +104,10 @@ if st.button("🎯 Analyze Tracks"):
             st.error("No tracks found.")
             st.stop()
 
+        st.write(f"✅ Fetched {len(tracks)} tracks. Now fetching audio features...")
         ids = [t["id"] for t in tracks]
         features = fetch_audio_features(ids)
+        st.write(f"🎧 Fetched audio features for {len(features)} valid tracks.")
 
         if not features:
             st.error("❌ No valid audio features found. Try with a different artist or reduce the number of tracks.")
@@ -116,14 +120,18 @@ if st.button("🎯 Analyze Tracks"):
 
         # 📊 Mood Distribution
         st.subheader("📊 Mood Distribution")
-        mood_counts = df["mood"].value_counts()
-        st.bar_chart(mood_counts)
+        if "mood" in df.columns:
+            mood_counts = df["mood"].value_counts()
+            st.bar_chart(mood_counts)
+        else:
+            st.warning("⚠️ Mood clustering failed. Please try with a different artist or fewer tracks.")
 
         # 🖼️ PCA Scatterplot
-        st.subheader("🖼️ Mood Clusters (2D PCA)")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.scatterplot(data=df, x="PCA1", y="PCA2", hue="mood", s=100, palette="Set2", ax=ax)
-        st.pyplot(fig)
+        if "PCA1" in df.columns and "PCA2" in df.columns:
+            st.subheader("🖼️ Mood Clusters (2D PCA)")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.scatterplot(data=df, x="PCA1", y="PCA2", hue="mood", s=100, palette="Set2", ax=ax)
+            st.pyplot(fig)
 
         # 🎧 Track Explorer
         st.subheader("🎶 Track Explorer")
@@ -133,7 +141,7 @@ if st.button("🎯 Analyze Tracks"):
                 st.image(row["album_image"], width=100)
             with col2:
                 st.markdown(f"**{row['track_name']}** by *{row['artist']}*")
-                st.markdown(f"Mood: {row['mood']} | Popularity: {row['popularity']}")
+                st.markdown(f"Mood: {row.get('mood', 'N/A')} | Popularity: {row['popularity']}")
                 if row["preview_url"]:
                     st.audio(row["preview_url"], format="audio/mp3")
                 else:
