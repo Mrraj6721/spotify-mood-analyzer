@@ -40,7 +40,7 @@ def fetch_audio_features(track_ids):
     for tid in track_ids:
         try:
             features = sp.audio_features(tid)[0]
-            if features:
+            if features and all(k in features and features[k] is not None for k in ["valence", "energy", "danceability", "acousticness", "tempo"]):
                 all_features.append(features)
             time.sleep(0.1)
         except:
@@ -108,6 +108,11 @@ if st.button("🎯 Analyze Tracks"):
 
         ids = [t["id"] for t in tracks]
         features = fetch_audio_features(ids)
+
+        if not features:
+            st.error("❌ No valid audio features found. Try with a different artist or reduce the number of tracks.")
+            st.stop()
+
         df = create_dataframe(tracks, features)
         df = cluster_and_label(df)
 
