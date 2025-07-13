@@ -50,18 +50,19 @@ def fetch_audio_features(track_ids):
 def create_dataframe(tracks, features):
     data = []
     for track, f in zip(tracks, features):
-        data.append({
-            "track_name": track["name"],
-            "artist": track["artists"][0]["name"],
-            "preview_url": track["preview_url"],
-            "album_image": track["album"]["images"][0]["url"],
-            "popularity": track["popularity"],
-            "valence": f["valence"],
-            "energy": f["energy"],
-            "danceability": f["danceability"],
-            "acousticness": f["acousticness"],
-            "tempo": f["tempo"]
-        })
+        if all(col in f and f[col] is not None for col in ["valence", "energy", "danceability", "acousticness", "tempo"]):
+            data.append({
+                "track_name": track["name"],
+                "artist": track["artists"][0]["name"],
+                "preview_url": track["preview_url"],
+                "album_image": track["album"]["images"][0]["url"],
+                "popularity": track["popularity"],
+                "valence": f["valence"],
+                "energy": f["energy"],
+                "danceability": f["danceability"],
+                "acousticness": f["acousticness"],
+                "tempo": f["tempo"]
+            })
     return pd.DataFrame(data)
 
 def cluster_and_label(df):
@@ -88,7 +89,7 @@ def cluster_and_label(df):
     # Mood labeling
     mood_labels = ["Calm", "Happy", "Sad", "Energetic"]
     df["mood"] = df["mood_cluster"].map(lambda x: mood_labels[x % len(mood_labels)])
-    
+
     # PCA for plot
     pca = PCA(n_components=2)
     components = pca.fit_transform(X_scaled)
@@ -110,7 +111,15 @@ if st.button("🎯 Analyze Tracks"):
         df = create_dataframe(tracks, features)
         df = cluster_and_label(df)
 
+        if "mood" not in df.columns:
+            st.error("⚠️ Mood clustering failed. Please try with a different artist or fewer tracks.")
+            st.stop()
+
         st.success("Analysis Complete ✅")
+
+        # Debug: Optional display of processed DataFrame
+        # st.write("DataFrame after clustering:")
+        # st.dataframe(df.head())
 
         # 📊 Mood Distribution
         st.subheader("📊 Mood Distribution")
